@@ -1,3 +1,7 @@
+# 12.1.9
+
+Fixes for patch version driver download issue. See https://bugs.chromium.org/p/chromium/issues/detail?id=1205107.
+
 # 12.1.8
 
 Fixes for macOS ChromeDriver download. If you are using a macOS and are
