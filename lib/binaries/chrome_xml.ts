@@ -80,7 +80,7 @@ export class ChromeXml extends XmlConfigSource {
       if (specificVersion === '') {
         throw new Error(`version ${inputVersion} ChromeDriver does not exist`)
       }
-      let itemFound = '';
+      let itemsFound = [];
       for (let item of list) {
         // Get a semantic version.
         let version = item.split('/')[0];
@@ -92,36 +92,58 @@ export class ChromeXml extends XmlConfigSource {
             if (lookUpVersion === specificVersion) {
               // When item found is null, check the os arch
               // 64-bit version works OR not 64-bit version and the path does not have '64'
-              if (itemFound == '') {
-                if (this.osarch === 'x64' ||
-                    (this.osarch !== 'x64' && !item.includes(this.getOsTypeName() + '64'))) {
-                  itemFound = item;
-                }
-                if (this.osarch === 'arm64' && this.ostype === 'Darwin' && item.includes('m1')) {
-                  itemFound = item;
-                }
+              if (this.osarch === 'x64' ||
+                  (this.osarch !== 'x64' && !item.includes(this.getOsTypeName() + '64'))) {
+                itemsFound.push(item);
               }
-              // If the semantic version is the same, check os arch.
-              // For 64-bit systems, prefer the 64-bit version.
-              else if (this.osarch === 'x64') {
-                // No win64 version exists, so even on x64 we need to look for win32
-                const osTypeNameAndArch =
-                    this.getOsTypeName() + (this.getOsTypeName() === 'win' ? '32' : '64');
-
-                if (item.includes(osTypeNameAndArch)) {
-                  itemFound = item;
-                }
+              if (this.osarch === 'arm64' && this.ostype === 'Darwin' && item.includes('m1')) {
+                itemsFound.push(item);
               }
             }
           }
         }
       }
+      itemsFound = this.filterArchitectureBitWidths(itemsFound);
+      const lookUpVersion = getValidSemver(inputVersion, {includePatch: true});
+      const itemFound = this.getExactVersionOrLatestPatch(lookUpVersion, itemsFound);
       if (itemFound == '') {
         return {url: '', version: inputVersion};
       } else {
         return {url: Config.cdnUrls().chrome + itemFound, version: inputVersion};
       }
     });
+  }
+
+  private filterArchitectureBitWidths(versions: string[]): string[] {
+    // If the semantic version is the same, check os arch.
+    // For 64-bit systems, prefer the 64-bit version.
+    if (this.osarch === 'x64') {
+      // No win64 version exists, so even on x64 we need to look for win32
+      const osTypeNameAndArch =
+          this.getOsTypeName() + (this.getOsTypeName() === 'win' ? '32' : '64');
+      const preferVersions = versions.filter(e => e.includes(osTypeNameAndArch));
+      if (preferVersions.length) {
+        versions = preferVersions;
+      }
+    }
+    return versions;
+  }
+
+  private getExactVersionOrLatestPatch(lookUpVersion: string, versions: string[]): string {
+    // Sort versions desc by patch number
+    versions = versions.sort(
+        (l, r) => this.getPatchVersionNumber(l) > this.getPatchVersionNumber(r) ? -1 : 1);
+    return versions.find(e => getValidSemver(e) === lookUpVersion) || versions[0] || '';
+  }
+
+  private getPatchVersionNumber(version: string): number {
+    let patchVersion = 0;
+    try {
+      patchVersion = parseInt(version.split('/')[0].split('.').slice(-1)[0])
+    } catch (_) {
+      // no-op
+    }
+    return patchVersion;
   }
 }
 
@@ -138,7 +160,9 @@ export class ChromeXml extends XmlConfigSource {
  *
  * @param version
  */
-export function getValidSemver(version: string): string {
+export function getValidSemver(version: string, options: {includePatch: boolean} = {
+  includePatch: false
+}): string {
   let lookUpVersion = '';
   // This supports downloading 2.46
   try {
@@ -155,7 +179,10 @@ export function getValidSemver(version: string): string {
     const newRegex = /(\d+.\d+.\d+).(\d+)/g;
     const exec = newRegex.exec(version);
     if (exec) {
-      lookUpVersion = `${exec[1]}-patch.${exec[2]}`;
+      lookUpVersion = `${exec[1]}`;
+      if (options.includePatch) {
+        lookUpVersion += `-patch.${exec[2]}`;
+      }
     }
   } catch (_) {
     // no-op: if this does not work, use the other regex pattern.

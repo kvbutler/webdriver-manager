@@ -91,12 +91,24 @@ describe('chrome xml reader', () => {
     });
   });
 
-  it('should get the 91.0.4472.101, 64-bit, m1 version (arch = arm64)', (done) => {
+  it('should get the 91.0.4472.101 (exactly specified), 64-bit, m1 version (arch = arm64)',
+     (done) => {
+       let chromeXml = new ChromeXml();
+       chromeXml.out_dir = out_dir;
+       chromeXml.ostype = 'Darwin';
+       chromeXml.osarch = 'arm64';
+       chromeXml.getUrl('91.0.4472.101').then((binaryUrl) => {
+         expect(binaryUrl.url).toContain('91.0.4472.101/chromedriver_mac64_m1.zip');
+         done();
+       });
+     });
+
+  it('should get the 91.0.4472.101 (by default), 64-bit, m1 version (arch = arm64)', (done) => {
     let chromeXml = new ChromeXml();
     chromeXml.out_dir = out_dir;
     chromeXml.ostype = 'Darwin';
     chromeXml.osarch = 'arm64';
-    chromeXml.getUrl('91.0.4472.101').then((binaryUrl) => {
+    chromeXml.getUrl('91.0.4472.124').then((binaryUrl) => {
       expect(binaryUrl.url).toContain('91.0.4472.101/chromedriver_mac64_m1.zip');
       done();
     });
